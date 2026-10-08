@@ -51,25 +51,26 @@ def main(audio_file=None, verbose=False):
         features, _ = model.extract_features(waveform.to(device))
 
     if verbose:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(len(features), 1, figsize=(16, 4.3 * len(features)))
         for i, feature in enumerate(features):
-            ax.plot(feature[0].cpu().numpy(), label=f'Layer {i}')
-            ax.set_title(f'Features from Layer {i}')
-            ax.set_xlabel('Time')
-            ax.set_ylabel('Feature Value')
+            ax[i].imshow(feature[0].cpu(), interpolation='nearest')
+            ax[i].set_title(f'Feature {i+1}')
+            ax[i].set_xlabel('Feature dimension')
+            ax[i].set_ylabel('Time step')
         fig.tight_layout()
+
 
     # Classification
     with torch.inference_mode():
         emissions, _ = model(waveform.to(device))
 
     if verbose:
-        fig, ax = plt.subplots()
-        ax.plot(emissions[0].cpu().numpy())
-        ax.set_title('Emissions')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Emission Value')
-        fig.tight_layout()
+        plt.imshow(emissions[0].cpu().T, interpolation='nearest')
+        plt.title('Classification Emissions')
+        plt.xlabel('Time step')
+        plt.ylabel('Class')
+        plt.tight_layout()
+        print(f"Labels: {bundle.get_labels()}")
 
     decoder = GreedyCTCDecoder(bundle.get_labels())
     transcription = decoder(emissions[0])
