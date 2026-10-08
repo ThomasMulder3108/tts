@@ -3,6 +3,9 @@ import torchaudio
 import matplotlib.pyplot as plt
 import numpy as np
 from IPython.display import Audio, display
+import os
+
+
 
 def load_data():
     # Download the LibriSpeech dataset
@@ -28,8 +31,6 @@ def show_waveform(speech_train):
 
     sample_rate = example[1]
     display(Audio(example[0].numpy(), rate=sample_rate))
-
-    
 
 
 
