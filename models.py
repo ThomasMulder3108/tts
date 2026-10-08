@@ -6,23 +6,6 @@ import matplotlib.pyplot as plt
 from IPython.display import Audio, display
 
 def load_model():
-    bundle = WAV2VEC2_BASE
-    model = bundle.get_model()
-    return model
-
-def load_tokenizer():
-    bundle = WAV2VEC2_ASR_BASE_960H
-    tokenizer = bundle.get_labels()
-    return tokenizer
-
-def transcribe_audio(model, tokenizer, audio):
-    with torch.no_grad():
-        emissions, _ = model(audio)
-    tokens = torch.argmax(emissions, dim=-1)
-    transcription = ''.join([tokenizer[token] for token in tokens[0]])
-    return transcription
-
-def main(audio_file=None, verbose=False):
     # Load the model and tokenizer
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     bundle = WAV2VEC2_ASR_BASE_960H
@@ -31,22 +14,9 @@ def main(audio_file=None, verbose=False):
 
     model = bundle.get_model().to(device)
 
-    train, test = load_data()
+    return model, bundle, device
 
-    if audio_file is None:
-        # Use the first sample from the training dataset
-        waveform, sample_rate, _, _, _, _ = train[0]
-
-    else: 
-        # Load the audio file
-        waveform, sample_rate = torchaudio.load(audio_file)
-
-    # Resample if necessary
-    if sample_rate != bundle.sample_rate:
-        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=bundle.sample_rate)
-        waveform = resampler(waveform)
-
-    # Feature extraction
+def feature_extraction(model, waveform, device, verbose=False):
     with torch.inference_mode():
         features, _ = model.extract_features(waveform.to(device))
 
@@ -59,8 +29,9 @@ def main(audio_file=None, verbose=False):
             ax[i].set_ylabel('Time step')
         fig.tight_layout()
 
+    return features
 
-    # Classification
+def classification(model, waveform, device, bundle, verbose=False):
     with torch.inference_mode():
         emissions, _ = model(waveform.to(device))
 
@@ -72,12 +43,40 @@ def main(audio_file=None, verbose=False):
         plt.tight_layout()
         print(f"Labels: {bundle.get_labels()}")
 
+    return emissions
+
+def main(audio_file=None, verbose=False):
+    # Load model and tokenizer
+    model, bundle, device = load_model()
+
+    # Load data
+    train, test = load_data()
+
+    if audio_file is None:
+        # Use the first sample from the test dataset
+        waveform, sample_rate, _, _, _, _ = test[0]
+
+    else: 
+        # Load the audio file
+        waveform, sample_rate = torchaudio.load(audio_file)
+
+    # Resample if necessary
+    if sample_rate != bundle.sample_rate:
+        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=bundle.sample_rate)
+        waveform = resampler(waveform)
+
+    # Feature extraction
+    features = feature_extraction(model, waveform, device, verbose)
+
+    # Classification
+    emissions = classification(model, waveform, device, bundle, verbose)
+
     decoder = GreedyCTCDecoder(bundle.get_labels())
     transcription = decoder(emissions[0])
 
+    # Output
     print(f"Transcription: {transcription}")
     display(Audio(waveform.cpu().numpy(), rate=bundle.sample_rate))
-
 
 
 class GreedyCTCDecoder(torch.nn.Module):
