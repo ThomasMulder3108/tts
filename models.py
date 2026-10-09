@@ -49,7 +49,7 @@ def classification(model, waveform, device, bundle, verbose=False):
 
     return emissions
 
-def main(audio_file=None, verbose=False):
+def main_asr(audio_file=None, verbose=False):
     print(audio_file)
 
     # Load model and tokenizer
@@ -61,20 +61,14 @@ def main(audio_file=None, verbose=False):
     if audio_file is None:
         # Use the first sample from the test dataset
         waveform, sample_rate, transcript, speaker_ID, Chapter_ID, Utterance_ID = test[0]
-        print(f"Waveform shape: {waveform.shape}, Sample rate: {sample_rate}")
-        print(f"Using sample from test dataset: {transcript}")
-        print(f"Speaker ID: {speaker_ID}, Chapter ID: {Chapter_ID}, Utterance ID: {Utterance_ID}")
 
     else: 
         # Load the audio file
         path = os.path.join('Speech/test_240.m4a')
-        print(f"Loading audio file: {path}")
 
         with open(path, 'rb') as f:
             audio = AudioSegment.from_file(f)
-            print(audio)
             sample_rate = audio.frame_rate
-            print(f"Audio channels: {audio.channels}, Frame rate: {audio.frame_rate}, Duration: {len(audio)} ms")
             waveform = audio.get_array_of_samples()
             waveform = np.asarray(waveform)
             waveform = torch.from_numpy(waveform)
@@ -84,12 +78,6 @@ def main(audio_file=None, verbose=False):
         # Reshape waveform to have shape (1, num_samples) if it's a 1D tensor
         if waveform.ndim == 1:
             waveform = waveform.unsqueeze(0)
-
-        
-
-
-
-
 
     # Resample if necessary
     if sample_rate != bundle.sample_rate:
@@ -108,6 +96,8 @@ def main(audio_file=None, verbose=False):
     # Output
     print(f"Transcription: {transcription}")
     display(Audio(waveform.cpu().numpy(), rate=bundle.sample_rate))
+
+    return transcription
 
 
 class GreedyCTCDecoder(torch.nn.Module):
