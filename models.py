@@ -64,7 +64,7 @@ def main_asr(audio_file=None, verbose=False):
 
     else: 
         # Load the audio file
-        path = os.path.join('Speech/test_240.m4a')
+        path = os.path.join(audio_file)
 
         with open(path, 'rb') as f:
             audio = AudioSegment.from_file(f)

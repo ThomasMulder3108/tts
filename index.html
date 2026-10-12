@@ -1,0 +1,45 @@
+<!-- index.html -->
+<button id="start">Start</button>
+<button id="stop" disabled>Stop</button>
+<pre id="result"></pre>
+
+<script>
+const startBtn = document.getElementById("start");
+const stopBtn = document.getElementById("stop");
+const resultEl = document.getElementById("result");
+
+let recorder, chunks = [];
+
+startBtn.onclick = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  recorder = new MediaRecorder(stream);
+  chunks = [];
+
+  recorder.ondataavailable = e => chunks.push(e.data);
+
+  recorder.onstop = async () => {
+    resultEl.textContent = "Transcribing...";
+    const blob = new Blob(chunks, { type: recorder.mimeType });
+    const form = new FormData();
+    form.append("audio", blob, "recording.webm");
+    try {
+      const res = await fetch("/transcribe", { method: "POST", body: form });
+      const data = await res.json();
+      resultEl.textContent = data.text;
+    } catch (err) {
+      resultEl.textContent = "Error: " + err;
+    }
+  };
+
+  recorder.start();
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+};
+
+stopBtn.onclick = () => {
+  recorder.stop();
+  recorder.stream.getTracks().forEach(t => t.stop());
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+</script>
