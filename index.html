@@ -1,45 +1,200 @@
-<!-- index.html -->
-<button id="start">Start</button>
-<button id="stop" disabled>Stop</button>
-<pre id="result"></pre>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Transcriber</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f8;
+    --card: #ffffff;
+    --ink: #1a2142;
+    --muted: #5f6a8c;
+    --line: #dde2f0;
+    --accent: #3b3fd8;
+    --accent-ink: #ffffff;
+    --rec: #e5384f;
+    --result-bg: #f6f7fc;
+    font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12152b;
+      --card: #1b2040;
+      --ink: #eef0fb;
+      --muted: #9aa3c7;
+      --line: #2c3361;
+      --accent: #7f83ff;
+      --accent-ink: #12152b;
+      --rec: #ff6178;
+      --result-bg: #151a35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 56px 20px;
+  }
+  header { text-align: center; margin-bottom: 32px; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); font-weight: 800; letter-spacing: -0.03em; margin: 0 0 8px; }
+  header p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+
+  main {
+    width: 100%; max-width: 560px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 24px;
+    padding: 32px; box-shadow: 0 12px 40px rgba(26, 33, 66, 0.08);
+  }
+
+  .status { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--line); }
+  .status.recording .dot { background: var(--rec); animation: pulse 1.4s ease-out infinite; }
+  .status.busy .dot { background: var(--accent); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rec) 55%, transparent); }
+    100% { box-shadow: 0 0 0 14px transparent; }
+  }
+  #statusText { font-weight: 600; color: var(--muted); }
+  #timer { font-variant-numeric: tabular-nums; font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em; }
+
+  .controls { display: flex; gap: 12px; justify-content: center; }
+  button {
+    font: inherit; font-weight: 700; border: 0; cursor: pointer;
+    padding: 14px 28px; border-radius: 999px;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  #start { background: var(--accent); color: var(--accent-ink); }
+  #stop { background: transparent; color: var(--rec); box-shadow: inset 0 0 0 2px var(--rec); }
+
+  .result-head { display: flex; justify-content: space-between; align-items: center; margin: 32px 0 10px; }
+  .result-head h2 { margin: 0; font-size: 1.05rem; }
+  #copy { padding: 6px 14px; font-size: 0.85rem; background: var(--result-bg); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  #result {
+    margin: 0; padding: 18px; min-height: 120px; border-radius: 14px;
+    background: var(--result-bg); border: 1px solid var(--line);
+    white-space: pre-wrap; font: inherit; line-height: 1.6; max-width: 70ch;
+  }
+  #result.empty { color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status.recording .dot { animation: none; }
+    button { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Transcrib it</h1>
+    <p>Record audio and get the text.</p>
+  </header>
+
+  <main>
+    <div class="status" id="status">
+      <span class="dot"></span>
+      <span id="statusText">Ready to record</span>
+    </div>
+    <div style="text-align:center; margin-bottom:24px;"><span id="timer">00:00</span></div>
+
+    <div class="controls">
+      <button id="start">Start recording</button>
+      <button id="stop" disabled>Stop and transcribe</button>
+    </div>
+
+    <div class="result-head">
+      <h2>Transcript</h2>
+      <button id="copy">Copy</button>
+    </div>
+    <pre id="result" class="empty">Your transcript will appear here.</pre>
+  </main>
 
 <script>
-const startBtn = document.getElementById("start");
-const stopBtn = document.getElementById("stop");
-const resultEl = document.getElementById("result");
+  const FIELD_NAME = "audio";
 
-let recorder, chunks = [];
+  const startBtn = document.getElementById("start");
+  const stopBtn = document.getElementById("stop");
+  const copyBtn = document.getElementById("copy");
+  const resultEl = document.getElementById("result");
+  const statusEl = document.getElementById("status");
+  const statusText = document.getElementById("statusText");
+  const timerEl = document.getElementById("timer");
 
-startBtn.onclick = async () => {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  recorder = new MediaRecorder(stream);
-  chunks = [];
+  let recorder, chunks = [], timerId, startedAt;
 
-  recorder.ondataavailable = e => chunks.push(e.data);
+  function setStatus(kind, text) {
+    statusEl.className = "status " + kind;
+    statusText.textContent = text;
+  }
 
-  recorder.onstop = async () => {
-    resultEl.textContent = "Transcribing...";
-    const blob = new Blob(chunks, { type: recorder.mimeType });
-    const form = new FormData();
-    form.append("audio", blob, "recording.webm");
+  function showResult(text, isEmpty = false) {
+    resultEl.textContent = text;
+    resultEl.classList.toggle("empty", isEmpty);
+  }
+
+  function tick() {
+    const s = Math.floor((Date.now() - startedAt) / 1000);
+    timerEl.textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  startBtn.onclick = async () => {
+    let stream;
     try {
-      const res = await fetch("/transcribe", { method: "POST", body: form });
-      const data = await res.json();
-      resultEl.textContent = data.text;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
-      resultEl.textContent = "Error: " + err;
+      setStatus("", "Microphone blocked. Allow access in your browser and try again.");
+      return;
     }
+
+    recorder = new MediaRecorder(stream);
+    chunks = [];
+    recorder.ondataavailable = e => chunks.push(e.data);
+
+    recorder.onstop = async () => {
+      setStatus("busy", "Transcribing...");
+      showResult("Working on it...", true);
+      const blob = new Blob(chunks, { type: recorder.mimeType });
+      const form = new FormData();
+      form.append(FIELD_NAME, blob, "recording.webm");
+      try {
+        const res = await fetch("/transcribe", { method: "POST", body: form });
+        if (!res.ok) throw new Error("Server returned " + res.status);
+        const data = await res.json();
+        showResult(data.text);
+        setStatus("", "Done. Ready to record again.");
+      } catch (err) {
+        showResult("Something went wrong: " + err.message, true);
+        setStatus("", "Transcription failed");
+      }
+    };
+
+    recorder.start();
+    startedAt = Date.now();
+    timerEl.textContent = "00:00";
+    timerId = setInterval(tick, 500);
+    setStatus("recording", "Recording");
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
   };
 
-  recorder.start();
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-};
+  stopBtn.onclick = () => {
+    clearInterval(timerId);
+    recorder.stop();
+    recorder.stream.getTracks().forEach(t => t.stop());
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  };
 
-stopBtn.onclick = () => {
-  recorder.stop();
-  recorder.stream.getTracks().forEach(t => t.stop());
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-}
+  copyBtn.onclick = async () => {
+    if (resultEl.classList.contains("empty")) return;
+    await navigator.clipboard.writeText(resultEl.textContent);
+    copyBtn.textContent = "Copied";
+    setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+  };
 </script>
+</body>
+</html>
