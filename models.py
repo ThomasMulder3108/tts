@@ -97,6 +97,8 @@ def main_asr(audio_file=None, verbose=False):
     print(f"Transcription: {transcription}")
     display(Audio(waveform.cpu().numpy(), rate=bundle.sample_rate))
 
+    transcription = transcription.replace("|", " ")
+
     return transcription
 
 
