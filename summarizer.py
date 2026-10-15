@@ -2,7 +2,7 @@ import ollama
 import re
 
 MODEL = "qwen3:4b"
-NUM_CTX = 2048
+NUM_CTX = 8192
 CHUNK_WORDS = 2500
 
 SYSTEM = (
@@ -35,6 +35,7 @@ def _chat(system, text):
     )
 
     out = response['message']['content']
+    print(response)
 
     return re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL).strip()
 

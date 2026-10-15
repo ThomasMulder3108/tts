@@ -210,7 +210,7 @@
     stopBtn.disabled = true;
   };
 
-  summarizeBtn.onclick = async () => {
+summarizeBtn.onclick = async () => {
     summarizeBtn.disabled = true;
     setStatus("busy", "Summarizing...");
     showSummary("Working on it...", true);
@@ -222,7 +222,11 @@
       });
       if (!res.ok) throw new Error("Server returned " + res.status);
       const data = await res.json();
-      showSummary(data.summary);
+      console.log("summarize response:", data);
+      showSummary(
+        data.summary || "The server returned an empty summary. Check the uvicorn terminal.",
+        !data.summary
+      );
       setStatus("", "Done. Ready to record again.");
     } catch (err) {
       showSummary("Something went wrong: " + err.message, true);
