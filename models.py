@@ -8,6 +8,7 @@ import soundfile as sf
 import os
 from pydub import AudioSegment
 import numpy as np
+import whisper
 
 def load_model():
     # Load the model and tokenizer
@@ -118,6 +119,16 @@ class GreedyCTCDecoder(torch.nn.Module):
         return transcription
 
 
+def whisper_model(audio_file=None):
+    _, test = load_data()
+
+    if audio_file is None:
+        # Use the first sample from the test dataset
+        audio_file = test[0][0]  # Assuming the first element is the waveform
+
+    model = whisper.load_model("small")
+    result = model.transcribe(audio_file)
+    return result["text"]
     
 
 

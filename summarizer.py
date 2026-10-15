@@ -1,13 +1,13 @@
 import ollama
 import re
 
-MODEL = "qwen3:4b"
+MODEL = "qwen3:4b-instruct-2507-q4_K_M"
 NUM_CTX = 8192
 CHUNK_WORDS = 2500
 
 SYSTEM = (
     "You summarize meeting transcripts. "
-    "Write the summary in the same language as the transcript (English or Dutch), "
+    "Write the summary in the same language as the transcript, "
     "including the section headings. "
     "Structure: a short summary (2-4 sentences), then 'Key decisions' and "
     "'Action items' as bullet lists, naming the owner when the transcript does. "
@@ -31,7 +31,6 @@ def _chat(system, text):
         options={
             "num_ctx": NUM_CTX,
             "temperature": 0.3},
-        think = False
     )
 
     out = response['message']['content']

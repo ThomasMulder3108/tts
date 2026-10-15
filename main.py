@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from models import main_asr
+from models import main_asr, whisper_model
 import os
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +22,7 @@ async def transcribe(audio: UploadFile = File(...)):
     path = RECORDINGS_DIR / filename
     path.write_bytes(await audio.read())
     print(f"Saved {path} ({path.stat().st_size} bytes)")
-    text = main_asr(str(path))
+    text = whisper_model(str(path))
     return {"text": text}
 
 class SummarizeRequest(BaseModel):
