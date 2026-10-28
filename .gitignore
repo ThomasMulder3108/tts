@@ -1,0 +1,7 @@
+LibriSpeech/
+documents/
+recordings/
+__pycache__/
+test-clean.tar.gz
+train-clean-100.tar.gz
+.DS_Store/
