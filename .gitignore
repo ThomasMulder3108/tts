@@ -6,4 +6,4 @@ test-clean.tar.gz
 train-clean-100.tar.gz
 .DS_Store/
 
-. env
+.env

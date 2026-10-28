@@ -41,6 +41,7 @@ httpcore @ file:///Users/ec2-user/buildout/croot/httpcore_1761937127030/work
 httptools==0.8.0
 httpx @ file:///Users/ec2-user/buildout/croot/httpx_1761937519393/work
 idna @ file:///Users/ec2-user/croot/idna_1780561396088/work
+iniconfig==2.3.1
 ipykernel @ file:///Users/ec2-user/croot/ipykernel_1785763698141/work
 ipython @ file:///Users/ec2-user/croot/ipython_1790159699663/work
 ipython-genutils @ file:///tmp/build/80754af9/ipython_genutils_1606773439826/work
@@ -99,6 +100,7 @@ parso @ file:///Users/ec2-user/croot/parso_1778674014309/work
 pexpect @ file:///opt/miniconda3/conda-bld/pexpect_1762535936044/work
 pillow==12.3.0
 platformdirs @ file:///Users/ec2-user/croot/platformdirs_1791205642349/work
+pluggy==1.7.0
 prometheus_client @ file:///Users/ec2-user/croot/prometheus_client_1772733399866/work
 prompt_toolkit @ file:///Users/ec2-user/croot/prompt-toolkit-split_1785325123722/work
 protobuf==7.36.2
@@ -114,6 +116,7 @@ pydub==0.25.1
 Pygments @ file:///Users/ec2-user/croot/pygments_1790343971012/work
 pyparsing==3.3.3
 PySocks @ file:///Users/ec2-user/croot/pysocks_1790021649310/work
+pytest==9.2.0
 python-dateutil @ file:///Users/ec2-user/buildout/croot/python-dateutil_1759952060416/work
 python-dotenv==1.2.4
 python-json-logger @ file:///Users/ec2-user/croot/python-json-logger_1786643891722/work
