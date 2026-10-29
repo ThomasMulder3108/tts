@@ -12,3 +12,4 @@ torch
 torchaudio
 uvicorn
 python-multipart
+audioop-lts
