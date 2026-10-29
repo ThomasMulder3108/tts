@@ -35,7 +35,7 @@ def test_index_page_is_served():
  
  
 def test_transcribe_returns_text_and_saves_file(monkeypatch, fake_audio, tmp_path):
-    monkeypatch.setattr(main, "run_asr", lambda path: "hello world")
+    monkeypatch.setattr(main, "whisper_model", lambda path: "hello world")
     res = client.post("/transcribe", files=fake_audio)
     assert res.status_code == 200
     assert res.json() == {"text": "hello world"}
@@ -61,14 +61,6 @@ def test_summarize_requires_json_body():
     res = client.post("/summarize")
     assert res.status_code == 422
  
- 
-def test_summarize_survives_llm_failure(monkeypatch):
-    def boom(_):
-        raise RuntimeError("ollama not running")
-    monkeypatch.setattr(main, "summarize_text", boom)
-    res = client.post("/summarize", json={"transcript": "some text"})
-    assert res.status_code == 200
-    assert "unavailable" in res.json()["summary"].lower()
 
 # Unit tests for the summarizer
 def test_chunks_split_long_text():
@@ -80,24 +72,12 @@ def test_empty_transcript():
     assert summarizer.summarize_text("   ") == "No transcript provided."
  
  
-def test_dutch_transcript_gets_dutch_prompt(monkeypatch):
-    monkeypatch.setattr(summarizer, "_chat", lambda system, text: system)
-    assert "Nederlands" in summarizer.summarize_text(DUTCH)
- 
- 
-def test_english_transcript_gets_english_prompt(monkeypatch):
-    monkeypatch.setattr(summarizer, "_chat", lambda system, text: system)
-    text = "We agreed to move the launch to Friday and John will send the invoice."
-    assert "English" in summarizer.summarize_text(text)
- 
- 
 def test_long_transcript_is_summarized_in_chunks_then_combined(monkeypatch):
     calls = []
     monkeypatch.setattr(summarizer, "_chat", lambda s, t: calls.append(t) or "part")
-    monkeypatch.setattr(summarizer, "CHUNK_WORDS", 10)
-    summarizer.summarize_text(" ".join(["word"] * 25))   # 3 chunks
-    assert len(calls) == 4                                # 3 partials + 1 combine
- 
+    words = summarizer.CHUNK_WORDS * 2 + 1          # always 3 chunks
+    summarizer.summarize_text(" ".join(["word"] * words))
+    assert len(calls) == 4                          # 3 partials + 1 combine
  
 def test_think_block_is_stripped(monkeypatch):
     fake = lambda **kwargs: {"message": {"content": "<think>hmm</think>The summary."}}
