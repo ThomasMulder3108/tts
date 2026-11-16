@@ -13,3 +13,4 @@ torchaudio
 uvicorn
 python-multipart
 audioop-lts
+python-dotenv

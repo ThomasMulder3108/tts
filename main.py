@@ -1,20 +1,27 @@
-from fastapi import FastAPI, UploadFile, File
+from datetime import datetime
+
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from models import main_asr, whisper_model
-import os
-from datetime import datetime
-from pathlib import Path
-from summarizer import summarize_text
 from pydantic import BaseModel
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+import config
+from models import whisper_model
+from summarizer import summarize_text
 
-RECORDINGS_DIR = Path("recordings")
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+RECORDINGS_DIR = config.RECORDINGS_DIR
 RECORDINGS_DIR.mkdir(exist_ok=True)
-DOCUMENTS_DIR = Path("documents")
+DOCUMENTS_DIR = config.DOCUMENTS_DIR
 DOCUMENTS_DIR.mkdir(exist_ok=True)
+
 
 @app.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
@@ -25,8 +32,10 @@ async def transcribe(audio: UploadFile = File(...)):
     text = whisper_model(str(path))
     return {"text": text}
 
+
 class SummarizeRequest(BaseModel):
     transcript: str
+
 
 @app.post("/summarize")
 async def summarize(req: SummarizeRequest):
@@ -37,9 +46,11 @@ async def summarize(req: SummarizeRequest):
         summary = summarize_text(req.transcript)
     except Exception as e:
         return {"error": str(e)}
-    
+
     return {"summary": summary}
+
 
 @app.get("/", response_class=HTMLResponse)
 async def main():
-    return open("index.html").read()
+    with open("index.html", encoding="utf-8") as f:
+        return f.read()

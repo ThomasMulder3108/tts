@@ -13,11 +13,17 @@ pip install -r requirements.txt          # also needs ffmpeg on PATH (whisper/py
 uvicorn main:app --reload                # serves the UI at http://localhost:8000/
 pytest -v                                # run all tests (CI also installs httpx)
 pytest test_app.py::test_think_block_is_stripped   # run a single test
+ruff check . && ruff format --check .   # lint (incl. bandit "S" security rules) + format check
+pre-commit install                       # one-time: run ruff + gitleaks on every commit
 ```
 
 Summarization requires a running Ollama server with the model pulled: `ollama pull qwen3:4b-instruct-2507-q4_K_M`.
 
-CI (`.github/workflows/tests.yml`) runs `pytest -v` on Python 3.14 for pushes to `main` and for PRs.
+CI (`.github/workflows/tests.yml`) runs three jobs for pushes to `main` and for PRs: `lint` (ruff check + format check), `secrets` (gitleaks over the full git history) and `test` (`pytest -v` on Python 3.14).
+
+## Configuration
+
+All runtime settings live in `config.py`, which reads environment variables, or `.env` through python-dotenv. `.env.example` lists every setting. Don't hardcode models, hosts, paths or origins in other modules. Add them to `config.py` and `.env.example` instead. `.env` is gitignored. CORS defaults to localhost origins only.
 
 ## Architecture
 
