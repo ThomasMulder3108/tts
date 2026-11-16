@@ -9,8 +9,8 @@ import os
 
 def load_data():
     # Download the LibriSpeech dataset
-    librispeech_train = torchaudio.datasets.LIBRISPEECH(".", url="train-clean-100",download=True)
-    librispeech_test = torchaudio.datasets.LIBRISPEECH(".", url="test-clean", download=True)
+    librispeech_train = torchaudio.datasets.LIBRISPEECH(".", url="train-clean-100",download=False)
+    librispeech_test = torchaudio.datasets.LIBRISPEECH(".", url="test-clean", download=False)
     return librispeech_train, librispeech_test
 
 def load_loaders(librispeech_train, librispeech_test):
