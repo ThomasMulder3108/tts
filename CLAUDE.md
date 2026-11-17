@@ -39,7 +39,7 @@ All runtime settings live in `config.py`, which reads environment variables, or 
 
 ## Gotchas
 
-- `whisper_model()` calls `load_data()` on every request, even when it is given an audio file. `load_data()` uses `download=False`, so the extracted `LibriSpeech/` folder (with `train-clean-100` and `test-clean`) must already exist locally, or `/transcribe` raises an error. To get the data, temporarily set `download=True` or extract the tarballs into the repo root. `whisper_model()` also reloads the Whisper model on every call.
+- `whisper_model()` only calls `load_data()` when no audio file is passed, so the extracted `LibriSpeech/` folder is only needed for that fallback and for `main_asr`/the notebook. `load_data()` uses `download=False`, so to get the data, temporarily set `download=True` or extract the tarballs into the repo root. The Whisper model is loaded once and cached.
 - `models.py` imports torch, torchaudio, whisper, matplotlib and IPython at module level, and `main.py` imports `models`. Importing `main` (including in tests) is therefore slow and needs the full ML stack installed.
 - The tests never touch real models. They monkeypatch `main.whisper_model`, `main.summarize_text`, `summarizer._chat` or `summarizer.ollama.chat`. An autouse fixture redirects `RECORDINGS_DIR` and `DOCUMENTS_DIR` to `tmp_path`. Follow the same pattern for new endpoint tests.
 - `recordings/`, `documents/`, `LibriSpeech/`, `Speech/` and the dataset tarballs are gitignored local data.

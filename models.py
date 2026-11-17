@@ -1,3 +1,4 @@
+import functools
 import os
 
 import matplotlib.pyplot as plt
@@ -127,13 +128,17 @@ class GreedyCTCDecoder(torch.nn.Module):
         return transcription
 
 
+@functools.cache
+def _load_whisper():
+    return whisper.load_model(config.WHISPER_MODEL)
+
+
 def whisper_model(audio_file=None):
-    _, test = load_data()
-
     if audio_file is None:
-        # Use the first sample from the test dataset
-        audio_file = test[0][0]  # Assuming the first element is the waveform
+        # No file given: fall back to the first LibriSpeech test sample.
+        # whisper.transcribe expects a 1-D waveform.
+        _, test = load_data()
+        audio_file = test[0][0].squeeze(0)
 
-    model = whisper.load_model(config.WHISPER_MODEL)
-    result = model.transcribe(audio_file)
+    result = _load_whisper().transcribe(audio_file)
     return result["text"]
