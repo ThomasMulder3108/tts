@@ -19,7 +19,7 @@ A local web app that records a meeting in the browser, transcribes it with [Whis
 ## Installation
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/ThomasMulder3108/tts.git
 cd tts
 python -m venv .venv
 source .venv/bin/activate
