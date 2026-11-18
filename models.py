@@ -11,6 +11,7 @@ from pydub import AudioSegment
 from torchaudio.pipelines import WAV2VEC2_ASR_BASE_960H
 
 import config
+import diarization
 from import_data import load_data
 
 
@@ -142,3 +143,16 @@ def whisper_model(audio_file=None):
 
     result = _load_whisper().transcribe(audio_file)
     return result["text"]
+
+
+def transcribe_with_speakers(audio_file):
+    """Transcribe with Whisper and label each part with a speaker (pyannote)."""
+    # Decode once (ffmpeg -> 16 kHz mono float32) and feed both models.
+    audio = whisper.load_audio(audio_file)
+
+    result = _load_whisper().transcribe(audio, word_timestamps=True)
+    words = [w for seg in result["segments"] for w in seg.get("words", [])]
+
+    turns = diarization.diarize(audio)
+    segments = diarization.assign_speakers(words, turns)
+    return {"text": diarization.format_transcript(segments), "segments": segments}

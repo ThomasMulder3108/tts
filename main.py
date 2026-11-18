@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import config
-from models import whisper_model
+from models import transcribe_with_speakers
 from summarizer import summarize_text
 
 app = FastAPI()
@@ -29,8 +29,8 @@ async def transcribe(audio: UploadFile = File(...)):
     path = RECORDINGS_DIR / filename
     path.write_bytes(await audio.read())
     print(f"Saved {path} ({path.stat().st_size} bytes)")
-    text = whisper_model(str(path))
-    return {"text": text}
+    result = transcribe_with_speakers(str(path))
+    return {"text": result["text"], "segments": result["segments"]}
 
 
 class SummarizeRequest(BaseModel):

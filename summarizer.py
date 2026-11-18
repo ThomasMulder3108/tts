@@ -13,6 +13,8 @@ SYSTEM = (
     "You summarize meeting transcripts. "
     "Write the summary in the same language as the transcript, "
     "including the section headings. "
+    "Each line of the transcript starts with the speaker's name or label "
+    "(e.g. 'Speaker 1:'); use it to attribute decisions and action items. "
     "Structure: a short summary (2-4 sentences), then 'Key decisions' and "
     "'Action items' as bullet lists, naming the owner when the transcript does. "
     "Use only information from the transcript. If there are no decisions or "

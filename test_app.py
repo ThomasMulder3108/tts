@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import diarization
 import main
 import summarizer
 
@@ -35,11 +36,16 @@ def test_index_page_is_served():
     assert "Meeting Transcriber" in res.text
 
 
-def test_transcribe_returns_text_and_saves_file(monkeypatch, fake_audio, tmp_path):
-    monkeypatch.setattr(main, "whisper_model", lambda path: "hello world")
+def test_transcribe_returns_text_and_segments_and_saves_file(monkeypatch, fake_audio, tmp_path):
+    segments = [{"speaker": "Speaker 1", "start": 0.0, "end": 1.0, "text": "hello world"}]
+    monkeypatch.setattr(
+        main,
+        "transcribe_with_speakers",
+        lambda path: {"text": "Speaker 1: hello world", "segments": segments},
+    )
     res = client.post("/transcribe", files=fake_audio)
     assert res.status_code == 200
-    assert res.json() == {"text": "hello world"}
+    assert res.json() == {"text": "Speaker 1: hello world", "segments": segments}
     assert len(list((tmp_path / "recordings").iterdir())) == 1
 
 
@@ -87,3 +93,51 @@ def test_think_block_is_stripped(monkeypatch):
 
     monkeypatch.setattr(summarizer.ollama, "chat", fake)
     assert summarizer._chat("system", "text") == "The summary."
+
+
+# Unit tests for speaker assignment
+def _w(word, start, end):
+    return {"word": word, "start": start, "end": end}
+
+
+def test_words_are_split_at_speaker_change():
+    words = [_w(" Hoi", 0.0, 0.4), _w(" Jan.", 0.4, 0.8), _w(" Hallo", 1.2, 1.6)]
+    turns = [(0.0, 1.0, "SPEAKER_00"), (1.0, 2.0, "SPEAKER_01")]
+    assert diarization.assign_speakers(words, turns) == [
+        {"speaker": "Speaker 1", "start": 0.0, "end": 0.8, "text": "Hoi Jan."},
+        {"speaker": "Speaker 2", "start": 1.2, "end": 1.6, "text": "Hallo"},
+    ]
+
+
+def test_word_spanning_two_turns_goes_to_largest_overlap():
+    turns = [(0.0, 1.0, "SPEAKER_00"), (1.0, 2.0, "SPEAKER_01")]
+    segs = diarization.assign_speakers([_w(" ja", 0.9, 1.5)], turns)
+    assert segs[0]["speaker"] == "Speaker 1"  # first appearance, raw SPEAKER_01
+    segs = diarization.assign_speakers([_w(" a", 0.0, 0.5), _w(" ja", 0.9, 1.5)], turns)
+    assert [s["speaker"] for s in segs] == ["Speaker 1", "Speaker 2"]
+
+
+def test_word_in_gap_goes_to_nearest_turn():
+    turns = [(0.0, 1.0, "SPEAKER_00"), (3.0, 4.0, "SPEAKER_01")]
+    words = [_w(" a", 0.0, 0.5), _w(" b", 2.6, 2.8)]  # gap word is closer to SPEAKER_01
+    segs = diarization.assign_speakers(words, turns)
+    assert [s["speaker"] for s in segs] == ["Speaker 1", "Speaker 2"]
+
+
+def test_labels_are_numbered_by_first_appearance():
+    turns = [(0.0, 1.0, "SPEAKER_01"), (1.0, 2.0, "SPEAKER_00"), (2.0, 3.0, "SPEAKER_01")]
+    words = [_w(" a", 0.1, 0.5), _w(" b", 1.1, 1.5), _w(" c", 2.1, 2.5)]
+    segs = diarization.assign_speakers(words, turns)
+    assert [s["speaker"] for s in segs] == ["Speaker 1", "Speaker 2", "Speaker 1"]
+
+
+def test_no_words_gives_no_segments():
+    assert diarization.assign_speakers([], [(0.0, 1.0, "SPEAKER_00")]) == []
+
+
+def test_format_transcript():
+    segs = [
+        {"speaker": "Speaker 1", "start": 0, "end": 1, "text": "Hoi."},
+        {"speaker": "Speaker 2", "start": 1, "end": 2, "text": "Hallo!"},
+    ]
+    assert diarization.format_transcript(segs) == "Speaker 1: Hoi.\nSpeaker 2: Hallo!"

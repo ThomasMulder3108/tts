@@ -14,3 +14,4 @@ uvicorn
 python-multipart
 audioop-lts
 python-dotenv
+pyannote.audio>=4
