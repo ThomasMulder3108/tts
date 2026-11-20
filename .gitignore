@@ -9,3 +9,7 @@ train-clean-100.tar.gz
 
 .env
 Speech/
+.env.*
+!.env.example
+*.pem
+*.key

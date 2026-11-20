@@ -1,14 +1,20 @@
-import ollama
 import re
 
-MODEL = "qwen3:4b-instruct-2507-q4_K_M"
-NUM_CTX = 8192
-CHUNK_WORDS = 2500
+import ollama
+
+import config
+
+MODEL = config.OLLAMA_MODEL
+NUM_CTX = config.OLLAMA_NUM_CTX
+TEMPERATURE = config.OLLAMA_TEMPERATURE
+CHUNK_WORDS = config.CHUNK_WORDS
 
 SYSTEM = (
     "You summarize meeting transcripts. "
     "Write the summary in the same language as the transcript, "
     "including the section headings. "
+    "Each line of the transcript starts with the speaker's name or label "
+    "(e.g. 'Speaker 1:'); use it to attribute decisions and action items. "
     "Structure: a short summary (2-4 sentences), then 'Key decisions' and "
     "'Action items' as bullet lists, naming the owner when the transcript does. "
     "Use only information from the transcript. If there are no decisions or "
@@ -20,28 +26,22 @@ CHUNK_PROMPT = (
     "transcript. Keep names, decisions and action items. Use only the transcript."
 )
 
-def _chat(system, text):
 
+def _chat(system, text):
     response = ollama.chat(
         model=MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": text}
-        ],
-        options={
-            "num_ctx": NUM_CTX,
-            "temperature": 0.3},
+        messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
+        options={"num_ctx": NUM_CTX, "temperature": TEMPERATURE},
     )
 
-    out = response['message']['content']
-    print(response)
-
+    out = response["message"]["content"]
     return re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL).strip()
+
 
 def _chunks(text, chunk_words=CHUNK_WORDS):
     words = text.split()
     for i in range(0, len(words), chunk_words):
-        yield " ".join(words[i:i + chunk_words])
+        yield " ".join(words[i : i + chunk_words])
 
 
 def summarize_text(transcript):
@@ -59,11 +59,6 @@ def summarize_text(transcript):
     # Summarize each chunk
     partials = [_chat(SYSTEM, f"{CHUNK_PROMPT}\n\n{chunk}") for chunk in chunks]
     combined_summary = "\n\n".join(partials)
-    return _chat(SYSTEM, f"Combine these summaries into one coherent summary:\n\n{combined_summary}")
-
-
-
-    
-
-
-
+    return _chat(
+        SYSTEM, f"Combine these summaries into one coherent summary:\n\n{combined_summary}"
+    )

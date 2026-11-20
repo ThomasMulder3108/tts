@@ -84,6 +84,16 @@
     width: 100%; max-height: 360px; overflow-y: auto;
   }
   #result.empty, #summary.empty { color: var(--muted); }
+
+  #speakers { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
+  #speakers[hidden] { display: none; }
+  #speakers label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  #speakers input {
+    font: inherit; font-size: 0.85rem; color: var(--ink); width: 9em;
+    padding: 5px 10px; border-radius: 999px;
+    background: var(--result-bg); border: 1px solid var(--line);
+  }
+  #speakers input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
  
   @media (prefers-reduced-motion: reduce) {
     .status.recording .dot { animation: none; }
@@ -113,6 +123,7 @@
       <h2>Transcript</h2>
       <button id="copy" data-target="result">Copy</button>
     </div>
+    <div id="speakers" hidden></div>
     <pre id="result" class="empty">Your transcript will appear here.</pre>
  
     <div class="result-head">
@@ -138,7 +149,35 @@
   const summaryEl = document.getElementById("summary");
   const summarizeBtn = document.getElementById("summarize");
 
+  const speakersEl = document.getElementById("speakers");
+
   let recorder, chunks = [], timerId, startedAt;
+  let segments = [], names = {};
+
+  // Render the transcript from diarized segments, using the user's names.
+  function renderTranscript() {
+    showResult(segments.map(s => (names[s.speaker] || s.speaker) + ": " + s.text).join("\n"));
+  }
+
+  function showSpeakers(segs) {
+    segments = segs || [];
+    names = {};
+    speakersEl.replaceChildren();
+    const unique = [...new Set(segments.map(s => s.speaker))];
+    speakersEl.hidden = unique.length === 0;
+    unique.forEach(speaker => {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.placeholder = speaker;
+      input.setAttribute("aria-label", "Name for " + speaker);
+      input.oninput = () => {
+        names[speaker] = input.value.trim();
+        renderTranscript();
+      };
+      label.append(speaker, input);
+      speakersEl.append(label);
+    });
+  }
 
   function setStatus(kind, text) {
     statusEl.className = "status " + kind;
@@ -174,7 +213,8 @@
     recorder.ondataavailable = e => chunks.push(e.data);
 
     recorder.onstop = async () => {
-      setStatus("busy", "Transcribing...");
+      setStatus("busy", "Transcribing and identifying speakers...");
+      showSpeakers([]);
       showResult("Working on it...", true);
       const blob = new Blob(chunks, { type: recorder.mimeType });
       const form = new FormData();
@@ -183,7 +223,9 @@
         const res = await fetch("/transcribe", { method: "POST", body: form });
         if (!res.ok) throw new Error("Server returned " + res.status);
         const data = await res.json();
-        showResult(data.text);
+        showSpeakers(data.segments);
+        if (segments.length) renderTranscript();
+        else showResult(data.text || "No speech detected.", !data.text);
         summarizeBtn.disabled = !data.text;
         setStatus("", "Transcribed. Click Summarize for a summary.");
       } catch (err) {

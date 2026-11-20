@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["LibriSpeech", "Speech", "recordings", "documents", "*.ipynb"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes (unused imports/variables, undefined names)
+    "I",       # import sorting
+    "B",       # bugbear (likely bugs)
+    "S",       # bandit (security: hardcoded secrets, eval, unsafe subprocess, ...)
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.File", "fastapi.Depends", "fastapi.Query"]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["S101"]  # assert is fine in tests
