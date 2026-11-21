@@ -29,6 +29,8 @@ pip install -r requirements.txt
 ollama pull qwen3:4b-instruct-2507-q4_K_M
 ```
 
+**Intel Macs:** PyTorch stopped publishing Intel Mac builds after 2.2.2, and pyannote.audio 4 needs a newer PyTorch. Use Python 3.12 and `pip install -r requirements-intel-mac.txt` instead. That file uses pyannote.audio 3.3, so set `DIARIZATION_MODEL=pyannote/speaker-diarization-3.1` in `.env` and accept the terms of both `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0`. It also installs ffmpeg through `imageio-ffmpeg`. Link it into the environment with `ln -s "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg`.
+
 Speaker diarization uses the gated model [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1). Accept its terms on Hugging Face and put an access token in `.env` as `HF_TOKEN` (see [Configuration](#configuration)). The token is only needed for the first download; after that the model loads from the local cache.
 
 The first transcription downloads the Whisper and pyannote models, so it takes longer than later ones.

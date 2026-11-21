@@ -12,10 +12,14 @@ SAMPLE_RATE = 16000  # whisper.load_audio always returns 16 kHz mono
 @functools.cache
 def _load_pipeline():
     # Imported lazily so importing this module (e.g. in tests) doesn't need pyannote.
+    from importlib.metadata import version
+
     import torch
     from pyannote.audio import Pipeline
 
-    pipeline = Pipeline.from_pretrained(config.DIARIZATION_MODEL, token=config.HF_TOKEN)
+    # pyannote 3.x (used on Intel Macs, see requirements-intel-mac.txt) calls it use_auth_token.
+    token_arg = "use_auth_token" if version("pyannote.audio").startswith("3.") else "token"
+    pipeline = Pipeline.from_pretrained(config.DIARIZATION_MODEL, **{token_arg: config.HF_TOKEN})
     if pipeline is None:
         raise RuntimeError(
             f"Could not load {config.DIARIZATION_MODEL}. Accept the model's terms on "
