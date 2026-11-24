@@ -22,6 +22,17 @@ CORS_ORIGINS = _list("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:800
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR", "recordings"))
 DOCUMENTS_DIR = Path(os.getenv("DOCUMENTS_DIR", "documents"))
 
+# Audio uploads. Anything ffmpeg can decode works; this allowlist keeps out
+# obviously wrong files before they reach ffmpeg.
+ALLOWED_AUDIO_EXTENSIONS = [
+    ext.lower() if ext.startswith(".") else "." + ext.lower()
+    for ext in _list(
+        "ALLOWED_AUDIO_EXTENSIONS",
+        ".webm,.wav,.mp3,.m4a,.mp4,.aac,.flac,.ogg,.opus,.wma,.aiff,.aif,.mov,.mkv",
+    )
+]
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
+
 # Speech-to-text
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 

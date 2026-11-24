@@ -71,7 +71,23 @@
   button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
   #start { background: var(--accent); color: var(--accent-ink); }
   #stop { background: transparent; color: var(--rec); box-shadow: inset 0 0 0 2px var(--rec); }
- 
+  .controls { flex-wrap: wrap; }
+  #upload { background: var(--result-bg); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+
+  #confirm {
+    margin-top: 20px; padding: 16px 18px; border-radius: 14px;
+    background: var(--result-bg); border: 1px solid var(--line); text-align: center;
+  }
+  #confirm[hidden] { display: none; }
+  #confirm p { margin: 0 0 12px; overflow-wrap: anywhere; }
+  #confirm .meta { color: var(--muted); font-size: 0.9rem; }
+  #confirm .btn-group { justify-content: center; }
+  #confirm button { padding: 8px 18px; font-size: 0.9rem; }
+  #useFile { background: var(--accent); color: var(--accent-ink); }
+  #cancelFile { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  #uploadError { margin: 12px 0 0; color: var(--rec); font-weight: 600; text-align: center; }
+  #uploadError:empty { display: none; }
+
   .result-head { display: flex; justify-content: space-between; align-items: center; margin: 32px 0 10px; }
   .result-head h2 { margin: 0; font-size: 1.05rem; }
   .btn-group { display: flex; gap: 8px; }
@@ -104,7 +120,7 @@
 <body>
   <header>
     <h1>Meeting Transcriber</h1>
-    <p>Record your meeting, get the text.</p>
+    <p>Record or upload your meeting, get the text.</p>
   </header>
  
   <main>
@@ -117,6 +133,18 @@
     <div class="controls">
       <button id="start">Start recording</button>
       <button id="stop" disabled>Stop and transcribe</button>
+      <button id="upload">Upload audio file</button>
+      <input type="file" id="fileInput" accept="audio/*,video/*" hidden>
+    </div>
+    <p id="uploadError" role="alert"></p>
+
+    <div id="confirm" hidden>
+      <p>Use <strong id="fileName"></strong> for transcription?<br>
+        <span class="meta" id="fileMeta"></span></p>
+      <div class="btn-group">
+        <button id="useFile">Transcribe this file</button>
+        <button id="cancelFile">Cancel</button>
+      </div>
     </div>
  
     <div class="result-head">
@@ -150,6 +178,15 @@
   const summarizeBtn = document.getElementById("summarize");
 
   const speakersEl = document.getElementById("speakers");
+
+  const uploadBtn = document.getElementById("upload");
+  const fileInput = document.getElementById("fileInput");
+  const uploadErrorEl = document.getElementById("uploadError");
+  const confirmEl = document.getElementById("confirm");
+  const fileNameEl = document.getElementById("fileName");
+  const fileMetaEl = document.getElementById("fileMeta");
+  const useFileBtn = document.getElementById("useFile");
+  const cancelFileBtn = document.getElementById("cancelFile");
 
   let recorder, chunks = [], timerId, startedAt;
   let segments = [], names = {};
@@ -212,28 +249,13 @@
     chunks = [];
     recorder.ondataavailable = e => chunks.push(e.data);
 
-    recorder.onstop = async () => {
-      setStatus("busy", "Transcribing and identifying speakers...");
-      showSpeakers([]);
-      showResult("Working on it...", true);
+    recorder.onstop = () => {
       const blob = new Blob(chunks, { type: recorder.mimeType });
-      const form = new FormData();
-      form.append(FIELD_NAME, blob, "recording.webm");
-      try {
-        const res = await fetch("/transcribe", { method: "POST", body: form });
-        if (!res.ok) throw new Error("Server returned " + res.status);
-        const data = await res.json();
-        showSpeakers(data.segments);
-        if (segments.length) renderTranscript();
-        else showResult(data.text || "No speech detected.", !data.text);
-        summarizeBtn.disabled = !data.text;
-        setStatus("", "Transcribed. Click Summarize for a summary.");
-      } catch (err) {
-        showResult("Something went wrong: " + err.message, true);
-        setStatus("", "Transcription failed");
-      }
+      transcribeBlob(blob, "recording.webm");
     };
 
+    hideConfirm();
+    uploadErrorEl.textContent = "";
     recorder.start();
     summarizeBtn.disabled = true;
     startedAt = Date.now();
@@ -241,6 +263,7 @@
     timerId = setInterval(tick, 500);
     setStatus("recording", "Recording");
     startBtn.disabled = true;
+    uploadBtn.disabled = true;
     stopBtn.disabled = false;
   };
 
@@ -248,8 +271,124 @@
     clearInterval(timerId);
     recorder.stop();
     recorder.stream.getTracks().forEach(t => t.stop());
-    startBtn.disabled = false;
     stopBtn.disabled = true;
+  };
+
+  // Shared by recording and upload: send audio to /transcribe and show the result.
+  async function transcribeBlob(blob, filename) {
+    startBtn.disabled = true;
+    uploadBtn.disabled = true;
+    summarizeBtn.disabled = true;
+    setStatus("busy", "Transcribing and identifying speakers...");
+    showSpeakers([]);
+    showResult("Working on it...", true);
+    const form = new FormData();
+    form.append(FIELD_NAME, blob, filename);
+    try {
+      const res = await fetch("/transcribe", { method: "POST", body: form });
+      if (!res.ok) {
+        let detail = "Server returned " + res.status;
+        try { detail = (await res.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      const data = await res.json();
+      showSpeakers(data.segments);
+      if (segments.length) renderTranscript();
+      else showResult(data.text || "No speech detected.", !data.text);
+      summarizeBtn.disabled = !data.text;
+      setStatus("", "Transcribed. Click Summarize for a summary.");
+    } catch (err) {
+      showResult("Something went wrong: " + err.message, true);
+      setStatus("", "Transcription failed");
+    }
+    startBtn.disabled = false;
+    uploadBtn.disabled = false;
+  }
+
+  // Upload an existing sound file. The file picker is the browser's permission;
+  // the confirm panel asks the user to explicitly approve using the chosen file.
+  let uploadRules = { extensions: [], max_mb: null };
+  fetch("/upload-config").then(r => r.json()).then(rules => {
+    uploadRules = rules;
+    fileInput.accept = ["audio/*", "video/*", ...rules.extensions].join(",");
+  }).catch(() => {});
+
+  let pendingFile = null;
+
+  function formatSize(bytes) {
+    return bytes >= 1024 * 1024
+      ? (bytes / 1024 / 1024).toFixed(1) + " MB"
+      : Math.max(1, Math.round(bytes / 1024)) + " KB";
+  }
+
+  function formatDuration(sec) {
+    sec = Math.round(sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const mm = String(m).padStart(h ? 2 : 1, "0"), ss = String(s).padStart(2, "0");
+    return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  }
+
+  function hideConfirm() {
+    pendingFile = null;
+    fileInput.value = "";
+    confirmEl.hidden = true;
+  }
+
+  // Returns an error message, or "" when the file looks usable.
+  function checkFile(file) {
+    const dot = file.name.lastIndexOf(".");
+    const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+    if (uploadRules.extensions.length && !uploadRules.extensions.includes(ext)) {
+      return `"${file.name}" is not a supported sound file. Supported: ${uploadRules.extensions.join(", ")}`;
+    }
+    if (file.size === 0) return `"${file.name}" is empty.`;
+    if (uploadRules.max_mb && file.size > uploadRules.max_mb * 1024 * 1024) {
+      return `"${file.name}" is ${formatSize(file.size)}; the limit is ${uploadRules.max_mb} MB.`;
+    }
+    return "";
+  }
+
+  uploadBtn.onclick = () => fileInput.click();
+
+  fileInput.onchange = () => {
+    const file = fileInput.files[0];
+    uploadErrorEl.textContent = "";
+    if (!file) return hideConfirm();
+    const error = checkFile(file);
+    if (error) {
+      hideConfirm();
+      uploadErrorEl.textContent = error;
+      return;
+    }
+    pendingFile = file;
+    fileNameEl.textContent = file.name;
+    fileMetaEl.textContent = formatSize(file.size) + " · reading duration...";
+    confirmEl.hidden = false;
+    useFileBtn.focus();
+
+    // Duration is informational only; the server decides whether it can decode the file.
+    const url = URL.createObjectURL(file);
+    const probe = new Audio();
+    const done = text => {
+      if (pendingFile === file) fileMetaEl.textContent = formatSize(file.size) + " · " + text;
+      URL.revokeObjectURL(url);
+    };
+    probe.onloadedmetadata = () =>
+      done(isFinite(probe.duration) ? formatDuration(probe.duration) : "duration unknown");
+    probe.onerror = () => done("duration unknown");
+    probe.preload = "metadata";
+    probe.src = url;
+  };
+
+  useFileBtn.onclick = () => {
+    const file = pendingFile;
+    hideConfirm();
+    if (file) transcribeBlob(file, file.name);
+  };
+
+  cancelFileBtn.onclick = () => {
+    hideConfirm();
+    uploadBtn.focus();
   };
 
 summarizeBtn.onclick = async () => {

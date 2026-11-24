@@ -6,7 +6,7 @@ A local web app that records a meeting in the browser, transcribes it with [Whis
 
 ## How it works
 
-1. The browser records audio with the MediaRecorder API (webm).
+1. The browser records audio with the MediaRecorder API (webm), or you upload an existing sound file.
 2. The audio is posted to `/transcribe`. The backend saves it to `recordings/`, transcribes it with Whisper and runs pyannote speaker diarization on the same audio. Each word is assigned to the speaker who was talking at that moment, and speakers are labelled `Speaker 1`, `Speaker 2`, … in order of appearance.
 3. You can rename the speakers above the transcript. The renamed transcript is what gets summarized, so decisions and action items use those names.
 4. When you click Summarize, the transcript is posted to `/summarize`. The backend saves it to `documents/` and summarizes it with Ollama. Long transcripts are split into chunks, each chunk is summarized, and the chunk summaries are combined into one final summary. The summary is written in the language of the transcript.
@@ -45,12 +45,17 @@ uvicorn main:app --reload
 
 Open <http://localhost:8000/> and:
 
-1. Click **Start recording** and allow microphone access.
-2. Click **Stop and transcribe**. The transcript appears on the page, split by speaker.
+1. Click **Start recording** and allow microphone access, then click **Stop and transcribe**.
+   Or click **Upload audio file**, pick a file, check the name, size and duration shown, and click **Transcribe this file**.
+2. The transcript appears on the page, split by speaker.
 3. Optionally rename "Speaker 1", "Speaker 2", … to the real names.
 4. Click **Summarize** to get a summary of the transcript.
 
 Both the transcript and the summary have a **Copy** button.
+
+### Supported sound files
+
+Audio is decoded with ffmpeg, so any format ffmpeg can read works: `.webm`, `.wav`, `.mp3`, `.m4a`, `.mp4`, `.aac`, `.flac`, `.ogg`, `.opus`, `.wma`, `.aiff`/`.aif`, and video files (`.mov`, `.mkv`, `.mp4`) as long as they have an audio track. Other extensions are rejected (HTTP 415), as are empty files (400) and files over `MAX_UPLOAD_MB` (413). A file with an allowed extension that ffmpeg can't decode, such as a corrupt file or a video without audio, returns 422 and is not kept. Long files work but take a while, because Whisper and pyannote process the whole file.
 
 ## Configuration
 
@@ -65,6 +70,8 @@ cp .env.example .env
 | `CORS_ORIGINS` | `http://localhost:8000,http://127.0.0.1:8000` | Comma-separated origins allowed to call the API |
 | `RECORDINGS_DIR` | `recordings` | Where uploaded audio is stored |
 | `DOCUMENTS_DIR` | `documents` | Where transcripts are stored |
+| `ALLOWED_AUDIO_EXTENSIONS` | `.webm,.wav,.mp3,.m4a,.mp4,.aac,.flac,.ogg,.opus,.wma,.aiff,.aif,.mov,.mkv` | File types accepted by `/transcribe` |
+| `MAX_UPLOAD_MB` | `500` | Largest accepted audio upload, in MB |
 | `WHISPER_MODEL` | `small` | Whisper model size: `tiny`, `base`, `small`, `medium` or `large` |
 | `DIARIZATION_MODEL` | `pyannote/speaker-diarization-community-1` | pyannote pipeline used for speaker diarization |
 | `HF_TOKEN` | | Hugging Face token, only needed for the first download of the gated model |
@@ -84,7 +91,8 @@ Larger Whisper models are more accurate but slower and need more memory. If you 
 | Method | Path | Body | Response |
 | --- | --- | --- | --- |
 | `GET` | `/` | | The web UI |
-| `POST` | `/transcribe` | multipart form with an `audio` file | `{"text": "Speaker 1: ...", "segments": [{"speaker", "start", "end", "text"}]}` |
+| `GET` | `/upload-config` | | `{"extensions": [...], "max_mb": 500}` |
+| `POST` | `/transcribe` | multipart form with an `audio` file | `{"text": "Speaker 1: ...", "segments": [{"speaker", "start", "end", "text"}]}`; 400/413/415/422 with `{"detail": "..."}` for invalid files |
 | `POST` | `/summarize` | JSON `{"transcript": "..."}` | `{"summary": "..."}`, or `{"error": "..."}` if summarization fails |
 
 `/summarize` returns HTTP 200 for errors too, so check for the `error` key.

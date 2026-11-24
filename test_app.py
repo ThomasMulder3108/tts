@@ -54,6 +54,61 @@ def test_transcribe_rejects_request_without_audio():
     assert res.status_code == 422
 
 
+def _fake_transcription(path):
+    return {"text": "Speaker 1: hoi", "segments": [{"speaker": "Speaker 1", "text": "hoi"}]}
+
+
+def test_upload_keeps_original_extension(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "transcribe_with_speakers", _fake_transcription)
+    res = client.post("/transcribe", files={"audio": ("Meeting.MP3", b"id3-bytes", "audio/mpeg")})
+    assert res.status_code == 200
+    assert res.json()["text"] == "Speaker 1: hoi"
+    saved = list((tmp_path / "recordings").iterdir())
+    assert [p.suffix for p in saved] == [".mp3"]
+
+
+def test_upload_rejects_unsupported_extension(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "transcribe_with_speakers", _fake_transcription)
+    res = client.post("/transcribe", files={"audio": ("notes.txt", b"hello", "text/plain")})
+    assert res.status_code == 415
+    assert ".txt" in res.json()["detail"]
+    assert not list((tmp_path / "recordings").iterdir())
+
+
+def test_upload_rejects_empty_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "transcribe_with_speakers", _fake_transcription)
+    res = client.post("/transcribe", files={"audio": ("empty.wav", b"", "audio/wav")})
+    assert res.status_code == 400
+    assert not list((tmp_path / "recordings").iterdir())
+
+
+def test_upload_rejects_too_large_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "transcribe_with_speakers", _fake_transcription)
+    monkeypatch.setattr(main, "MAX_UPLOAD_MB", 0)
+    res = client.post("/transcribe", files={"audio": ("big.wav", b"x", "audio/wav")})
+    assert res.status_code == 413
+    assert not list((tmp_path / "recordings").iterdir())
+
+
+def test_undecodable_audio_returns_422_and_removes_file(monkeypatch, tmp_path):
+    def broken(path):
+        raise RuntimeError("Failed to load audio: ffmpeg error")
+
+    monkeypatch.setattr(main, "transcribe_with_speakers", broken)
+    res = client.post("/transcribe", files={"audio": ("fake.mp3", b"not audio", "audio/mpeg")})
+    assert res.status_code == 422
+    assert "decode" in res.json()["detail"]
+    assert not list((tmp_path / "recordings").iterdir())
+
+
+def test_upload_config_lists_allowed_extensions():
+    res = client.get("/upload-config")
+    assert res.status_code == 200
+    body = res.json()
+    assert ".mp3" in body["extensions"] and ".webm" in body["extensions"]
+    assert body["max_mb"] == main.MAX_UPLOAD_MB
+
+
 def test_summarize_returns_summary_and_saves_transcript(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "summarize_text", lambda t: "a short summary")
     res = client.post("/summarize", json={"transcript": DUTCH})
